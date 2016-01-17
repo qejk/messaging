@@ -63,7 +63,7 @@ class Space.messaging.CommandProcessor extends Space.Object
     wrapper = (command) ->
       processedCommand = processor.call(self, command)
       processedCommand = command unless processedCommand
-      handler(command)
+      handler(processedCommand)
 
     return wrapper
 
