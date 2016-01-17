@@ -59,8 +59,9 @@ class Space.messaging.CommandProcessor extends Space.Object
     @commandBus.getHandlerFor(commandType)
 
   _wrapCommandHandlerWithProcessor: (handler, processor) ->
+    self = @
     wrapper = (command) ->
-      processedCommand = processor(command)
+      processedCommand = processor.call(self, command)
       processedCommand = command unless processedCommand
       handler(command)
 
