@@ -34,8 +34,11 @@ Package.onUse(function(api) {
   // SERVER
   api.addFiles([
     'source/mixins/command-handling.coffee',
-    'source/command_processor.coffee',
-    'source/bulk_command_processor.coffee'
+    'source/mixins/command-handler-decorator.coffee',
+    'source/command-processor.coffee',
+    'source/command-transformer.coffee',
+    'source/bulk-command-processor.coffee',
+    'source/bulk-command-transformer.coffee'
   ], 'server');
 
   // SHARED

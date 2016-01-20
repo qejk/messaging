@@ -1,5 +1,9 @@
 class Space.messaging.BulkCommandProcessor extends Space.messaging.CommandProcessor
 
+  @mixin [
+    Space.messaging.CommandHandlerDecorator
+  ]
+
   commands: null
 
   constructor: ->
@@ -10,9 +14,9 @@ class Space.messaging.BulkCommandProcessor extends Space.messaging.CommandProces
     if not @commands?
       throw new Error Space.messaging.CommandProcessor.ERRORS.missingCommands
 
-  _setup: ->
+  onDependenciesReady: ->
     for command in @commands
-      @_wrapCommand(command)
+      @_setupCommandHandlerDecorator(command)
 
   _hasProcessor: (commandType) ->
     @processors()[commandType]?
