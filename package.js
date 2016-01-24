@@ -35,8 +35,7 @@ Package.onUse(function(api) {
   api.addFiles([
     'source/mixins/command-handling.coffee',
     'source/mixins/command-handler-decorator.coffee',
-    'source/command-processor.coffee',
-    'source/command-transformer.coffee',
+    'source/command-validator.coffee',
     'source/bulk-command-processor.coffee',
     'source/bulk-command-transformer.coffee'
   ], 'server');
