@@ -36,8 +36,6 @@ Package.onUse(function(api) {
     'source/mixins/command-handling.coffee',
     'source/mixins/command-handler-decorator.coffee',
     'source/command-validator.coffee',
-    'source/bulk-command-processor.coffee',
-    'source/bulk-command-transformer.coffee'
   ], 'server');
 
   // SHARED
