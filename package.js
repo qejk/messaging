@@ -29,7 +29,8 @@ Package.onUse(function(api) {
     'source/mixins/command-sending.coffee',
     'source/mixins/application-helpers.coffee',
     'source/mixins/ejsonable.js',
-    'source/mixins/versionable.js'
+    'source/mixins/versionable.js',
+    'source/mixins/hooks.js',
   ]);
 
   // SERVER
