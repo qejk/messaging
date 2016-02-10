@@ -49,7 +49,8 @@ Package.onUse(function(api) {
     'source/controller.js',
     'source/tracker.coffee',
     'source/publication.coffee',
-    'source/api.coffee'
+    'source/api.coffee',
+    'source/hook-registry.js'
   ]);
 
 });
