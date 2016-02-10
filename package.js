@@ -51,6 +51,7 @@ Package.onUse(function(api) {
     'source/tracker.coffee',
     'source/publication.coffee',
     'source/api.coffee',
+    'source/api-middleware.js',
     'source/hook-registry.js'
   ]);
 
