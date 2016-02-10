@@ -4,6 +4,7 @@ class Space.messaging.CommandBus extends Space.Object
   dependencies: {
     meteor: 'Meteor'
     api: 'Space.messaging.Api'
+    _hooks: 'Space.messaging.HookRegistry'
   }
 
   _handlers: null
@@ -17,6 +18,12 @@ class Space.messaging.CommandBus extends Space.Object
   send: (command, callback) ->
     if @meteor.isServer
       # ON THE SERVER
+
+      # Ensure, that domain rules are testable on server side thus allowing
+      # encapsulated tests of domain package
+      for item in @_hooks.getRuleHooks(command.typeName())
+        item.hook.apply(item.hook, arguments)
+
       handler = @_handlers[command.typeName()]
       callback(command) for callback in @_onSendCallbacks
       if !handler?
