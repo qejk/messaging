@@ -82,11 +82,12 @@ class Space.messaging.Api extends Space.Object
             item.hook.apply(item.hook, arguments)
           # Omit here domain rules - do that on Space.messaging.CommandBus
           # so rules can be tested on project:domain packages
-          handler.apply(@, arguments)
+          result = handler.apply(@, arguments)
 
           for item in @getAfterHooks(type)
             item.hook.apply(item.hook, arguments)
 
+          return result
 
   onDependenciesReady: ->
     @_setupDeclarativeMappings 'methods', @_setupDeclarativeHandler
