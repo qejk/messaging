@@ -1,3 +1,5 @@
+
+
 class Space.messaging.Api extends Space.Object
 
   dependencies: {
@@ -25,40 +27,49 @@ class Space.messaging.Api extends Space.Object
 
 
   # Sugar for sending messages to the server
-  @send: (message, callback) ->
-    self = @
+  @send: (message, callback, isCalledFromCmdBus) ->
     # TODO: We could fake DDPCommon.MethodInvocation here so the context is
     # like Meteor's one (like what is happening in package 'ddp-client' on
     # 'livedata_connection.js' - Meteor.call()) however this can cause
     # confusion on long run
-    methodContext = {
+    context = {
       isSimulation: true
     }
     # Only when accounts package is present on application
-    methodContext.userId = Meteor.userId if Meteor.userId?
+    context.userId = Meteor.userId if Meteor.userId?
 
+    meteorCallCallback = (err, result) =>
+      response = {error: undefined, result: result or undefined}
+      response.error = err if err?
+
+      # TODO: would be nice to use here easier way to validate origination of
+      # this.send() method invocation, however was having issues with stack
+      # trace ((new Error).stack) - do to minifying
+
+      afterHooks = @_getAfterHooks(context, message, response)
+      # Pass Api hooks here down back to CommandBus if this.send()
+      # invocation originates from CommandBus in first place order sake
+      if isCalledFromCmdBus
+        callback(err, result, afterHooks)
+      else
+        @_waterfallThrough(afterHooks, (context, message, response) =>
+          callback(err, result) if callback
+        )
+
+    @_waterfallThrough @_getBeforeHooks(context, message), (context, message) =>
+      Meteor.call(message.typeName(), message, meteorCallCallback)
+
+  @_getBeforeHooks: (context, message) ->
     # First callback is passing appropriate arguments to rest of hooks
-    beforeHooks = [(cb) -> cb(methodContext, message)].concat(
+    return [(cb) -> cb(context, message)].concat(
       @getBeforeHooks(message.typeName())
     )
-    # TODO: should rules be fired before Api hooks or like in here - in between
-    # When here:
-    # + it let app validation first be done before any business rule is applied
-    # - and in same time it require to run whole app validation before business
-    #   logic
-    rules = [(cb) -> cb(message)].concat(@getRuleHooks(message.typeName()))
 
-    this._waterfallThrough beforeHooks, (context, message) ->
-      # For expressiveness while rule hooks are added on Api - I added this var
-      command = message
-      self._waterfallThrough rules, (command) ->
-        Meteor.call message.typeName(), message, (err, result) ->
-          response = {error: err, result: result}
-          afterHooks = [(cb) -> cb(methodContext, message, response)].concat(
-            self.getAfterHooks(message.typeName())
-          )
-          self._waterfallThrough afterHooks, (context, message, response) ->
-            callback(err, result) if callback
+  @_getAfterHooks: (context, message, response) ->
+    # First callback is passing appropriate arguments to rest of hooks
+    return [(cb) -> cb(context, message, response)].concat(
+      @getAfterHooks(message.typeName())
+    )
 
   # Register the method statically, so that is done only once
   @_registerMethod: (name, body) ->
@@ -86,8 +97,6 @@ class Space.messaging.Api extends Space.Object
     @_setupMiddleware() if @middleware?
 
   _setupDeclarativeHandler: (handler, type) =>
-    self = @
-
     existingHandler = @_getHandlerFor type
     if existingHandler?
       @constructor._setupHandler type, handler
@@ -96,40 +105,49 @@ class Space.messaging.Api extends Space.Object
         @constructor.method type, handler
       else
         wrappedHandler = (context, message, asyncCallback) =>
-          # First callback is passing appropriate arguments to rest of hooks
-          beforeHooks = [(cb) -> cb(context, message)].concat(
-            self.getBeforeHooks(type)
-          )
+          bindEnv = Meteor.bindEnvironment
 
-          self._waterfallThrough beforeHooks, Meteor.bindEnvironment (context, message) ->
+          beforeHooks = @_getBeforeHooks(context, message)
+          @_waterfallThrough beforeHooks, bindEnv (context, message) =>
             try
               # Don't throw error right away, let developer have freedom
               # to log error or behave accordingly
-              result = handler.apply(self, [context, message])
-              response = {error: null, result: result}
+              result = handler.apply(@, [context, message])
+              response = {error: undefined, result: result or undefined}
             catch e
-              response = {error: e, result: null}
+              response = {error: e, result: undefined}
 
-            afterHooks = [(cb) -> cb(context, message, response)].concat(
-              self.getAfterHooks(type)
-            )
-            self._waterfallThrough afterHooks, (context, message, response) ->
+            afterHooks = @_getAfterHooks(context, message, response)
+            @_waterfallThrough afterHooks, bindEnv (context, message, response) ->
               if response.error
-                asyncCallback(response.error, null)
+                asyncCallback(response.error, undefined)
               else
-                asyncCallback(null, result)
+                asyncCallback(undefined, result)
         # TODO: need clarification if Meteor.defer + context.unblock still work
         # as they should
         @constructor.method type, Meteor.wrapAsync(wrappedHandler)
 
+
+  _getBeforeHooks: (context, message) ->
+    # First callback is passing appropriate arguments to rest of hooks
+    return [(cb) -> cb(context, message)].concat(
+      @getBeforeHooks(message.typeName())
+    )
+
+  _getAfterHooks: (context, message, response) ->
+    # First callback is passing appropriate arguments to rest of hooks
+    return [(cb) -> cb(context, message, response)].concat(
+      @getAfterHooks(message.typeName())
+    )
+
   _setupBeforeHooks: ->
     @_setupDeclarativeMappings('beforeMap', (hook, methodName) =>
-      @addBeforeHook(methodName, @constructor, hook.bind(@))
+      @addBeforeHook(methodName, @, hook.bind(@))
     )
 
   _setupAfterHooks: ->
     @_setupDeclarativeMappings('afterMap', (hook, methodName) =>
-      @addAfterHook(methodName, @constructor, hook.bind(@))
+      @addAfterHook(methodName, @, hook.bind(@))
     )
 
   _setupMiddleware:->
