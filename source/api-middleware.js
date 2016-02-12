@@ -28,15 +28,9 @@ Space.Object.extend('Space.messaging.ApiMiddleware', {
   for 'before', 'beforeMap', 'after', 'afterMap' hooks methods.
   */
   onDependenciesReady() {
-    if (this.isGlobal() === false) {
-      return;
-    }
-    if (this.before !== undefined) {
-      this._setupGlobalBeforeHooks();
-    }
-    if (this.after !== undefined) {
-      this._setupGlobalAfterHooks();
-    }
+    if (this.isGlobal() === false) return;
+    if (this.before !== undefined) this._setupGlobalBeforeHooks();
+    if (this.after !== undefined) this._setupGlobalAfterHooks();
   },
 
   _setupGlobalBeforeHooks() {
