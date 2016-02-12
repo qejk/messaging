@@ -2,7 +2,7 @@ Space.Object.extend('Space.messaging.ApiMiddleware', {
 
   dependencies: {
     underscore: 'underscore',
-    hooks: 'Space.messaging.HookRegistry'
+    hooks: 'Space.messaging.ApiHooks'
   },
 
   Constructor(options) {
