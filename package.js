@@ -16,7 +16,8 @@ Package.onUse(function(api) {
     'ejson',
     'ecmascript',
     'fongandrew:find-and-modify@0.2.1',
-    'space:base@4.1.1'
+    'space:base@4.1.1',
+    'meteorhacks:async@1.0.0'
   ]);
 
   // SHARED
@@ -52,6 +53,7 @@ Package.onUse(function(api) {
     'source/publication.coffee',
     'source/api.coffee',
     'source/api-middleware.js',
+    'source/command-middleware.js',
     'source/hook-registry.js'
   ]);
 
