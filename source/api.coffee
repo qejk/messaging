@@ -3,6 +3,7 @@ class Space.messaging.Api extends Space.Object
   dependencies: {
     injector: 'Injector',
     meteor: 'Meteor'
+    underscore: 'underscore'
   }
 
   @mixin [
@@ -22,31 +23,37 @@ class Space.messaging.Api extends Space.Object
     @_setupHandler type, handler
     @_registerMethod type, @_setupMethod(type)
 
+
   # Sugar for sending messages to the server
   @send: (message, callback) ->
+    self = @
     # TODO: We could fake DDPCommon.MethodInvocation here so the context is
     # like Meteor's one (like what is happening in package 'ddp-client' on
     # 'livedata_connection.js' - Meteor.call()) however this can cause
     # confusion on long run
-    args = [{}, message]
+    methodContext = {}
+    # First callback is passing appropriate arguments to rest of hooks
+    beforeHooks = [(cb) -> cb(methodContext, message)].concat(
+      @getBeforeHooks(message.typeName())
+    )
+    # TODO: should rules be fired before Api hooks or like in here - in between
+    # When here:
+    # + it let app validation first be done before any business rule is applied
+    # - and in same time it require to run whole app validation before business
+    #   logic
+    rules = [(cb) -> cb(message)].concat(@getRuleHooks(message.typeName()))
 
-    for item in @getBeforeHooks(message.typeName())
-      item.hook.apply(item.hook, args)
-
-    ###
-    Order-wise, we need to fire domain rules after 'before' hooks - however
-    before firing Meteor method with Meteor.call(). This is because
-    method on server and on client will be processed simultaneously
-    (if method mapping is present on client (like shared on client and
-    server Space.messaging.Api subclass))
-    ###
-    for item in @getRuleHooks(message.typeName())
-      item.hook.call(item.hook, message)
-
-    Meteor.call message.typeName(), message, callback
-
-    for item in @getAfterHooks(message.typeName())
-      item.hook.apply(item.hook, args)
+    this.waterfall beforeHooks, (context, message) ->
+      # For expressiveness while rule hooks are added on Api - I added this var
+      command = message
+      self.waterfall rules, (command) ->
+        Meteor.call message.typeName(), message, (err, result) ->
+          response = {error: err, result: result}
+          afterHooks = [(cb) -> cb(methodContext, message, response)].concat(
+            self.getAfterHooks(message.typeName())
+          )
+          self.waterfall afterHooks, (context, message, response) ->
+            callback(err, result) if callback
 
   # Register the method statically, so that is done only once
   @_registerMethod: (name, body) ->
@@ -69,7 +76,13 @@ class Space.messaging.Api extends Space.Object
     @_setupDeclarativeMappings 'methods', @_setupDeclarativeHandler
     @_bindHandlersToInstance()
 
+    @_setupBeforeHooks() if @beforeMap?
+    @_setupAfterHooks() if @afterMap?
+    @_setupMiddleware() if @middleware?
+
   _setupDeclarativeHandler: (handler, type) =>
+    self = @
+
     existingHandler = @_getHandlerFor type
     if existingHandler?
       @constructor._setupHandler type, handler
@@ -77,34 +90,42 @@ class Space.messaging.Api extends Space.Object
       if @meteor.isClient
         @constructor.method type, handler
       else
-        @constructor.method type, () =>
-          for item in @getBeforeHooks(type)
-            item.hook.apply(item.hook, arguments)
-          # Omit here domain rules - do that on Space.messaging.CommandBus
-          # so rules can be tested on project:domain packages
-          result = handler.apply(@, arguments)
+        # 3d argument of Meteor.wrapAsync will be here async callback
+        wrappedHandler = (context, message, callback) =>
+          # First callback is passing appropriate arguments to rest of hooks
+          beforeHooks = [(cb) -> cb(context, message)].concat(
+            self.getBeforeHooks(type)
+          )
 
-          for item in @getAfterHooks(type)
-            item.hook.apply(item.hook, arguments)
+          self.waterfall beforeHooks, Meteor.bindEnvironment (context, message) ->
+            try
+              # Don't throw error right away, let developer have freedom
+              # to log error or behave accordingly
+              result = handler.apply(self, [context, message])
+              response = {error: null, result: result}
+            catch e
+              response = {error: e, result: null}
 
-          return result
-
-  onDependenciesReady: ->
-    @_setupDeclarativeMappings 'methods', @_setupDeclarativeHandler
-    @_bindHandlersToInstance()
-
-    @_setupBeforeHooks() if @beforeMap?
-    @_setupAfterHooks() if @afterMap?
-    @_setupMiddleware() if @middleware?
+            afterHooks = [(cb) -> cb(context, message, response)].concat(
+              self.getAfterHooks(type)
+            )
+            self.waterfall afterHooks, (context, message, response) ->
+              if response.error
+                callback(response.error, null)
+              else
+                callback(null, result)
+        # TODO: need clarification if Meteor.defer + context.unblock still work
+        # as they should
+        @constructor.method type, Meteor.wrapAsync(wrappedHandler)
 
   _setupBeforeHooks: ->
     @_setupDeclarativeMappings('beforeMap', (hook, methodName) =>
-      @addBeforeHook(methodName, @constructor, hook)
+      @addBeforeHook(methodName, @constructor, hook.bind(@))
     )
 
   _setupAfterHooks: ->
     @_setupDeclarativeMappings('afterMap', (hook, methodName) =>
-      @addAfterHook(methodName, @constructor, hook)
+      @addAfterHook(methodName, @constructor, hook.bind(@))
     )
 
   _setupMiddleware:->
