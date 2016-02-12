@@ -11,8 +11,8 @@ class Space.messaging.Api extends Space.Object
     Space.messaging.StaticHandlers
     Space.messaging.CommandSending
     Space.messaging.EventPublishing
-    Space.messaging.Hooks
-    {statics: Space.messaging.Hooks}
+    Space.messaging.Hooks('Space.messaging.ApiHooks')
+    {statics: Space.messaging.Hooks('Space.messaging.ApiHooks')}
   ]
 
   methods: -> []
@@ -31,7 +31,12 @@ class Space.messaging.Api extends Space.Object
     # like Meteor's one (like what is happening in package 'ddp-client' on
     # 'livedata_connection.js' - Meteor.call()) however this can cause
     # confusion on long run
-    methodContext = {}
+    methodContext = {
+      isSimulation: true
+    }
+    # Only when accounts package is present on application
+    methodContext.userId = Meteor.userId if Meteor.userId?
+
     # First callback is passing appropriate arguments to rest of hooks
     beforeHooks = [(cb) -> cb(methodContext, message)].concat(
       @getBeforeHooks(message.typeName())
@@ -43,16 +48,16 @@ class Space.messaging.Api extends Space.Object
     #   logic
     rules = [(cb) -> cb(message)].concat(@getRuleHooks(message.typeName()))
 
-    this.waterfall beforeHooks, (context, message) ->
+    this._waterfallThrough beforeHooks, (context, message) ->
       # For expressiveness while rule hooks are added on Api - I added this var
       command = message
-      self.waterfall rules, (command) ->
+      self._waterfallThrough rules, (command) ->
         Meteor.call message.typeName(), message, (err, result) ->
           response = {error: err, result: result}
           afterHooks = [(cb) -> cb(methodContext, message, response)].concat(
             self.getAfterHooks(message.typeName())
           )
-          self.waterfall afterHooks, (context, message, response) ->
+          self._waterfallThrough afterHooks, (context, message, response) ->
             callback(err, result) if callback
 
   # Register the method statically, so that is done only once
@@ -90,14 +95,13 @@ class Space.messaging.Api extends Space.Object
       if @meteor.isClient
         @constructor.method type, handler
       else
-        # 3d argument of Meteor.wrapAsync will be here async callback
-        wrappedHandler = (context, message, callback) =>
+        wrappedHandler = (context, message, asyncCallback) =>
           # First callback is passing appropriate arguments to rest of hooks
           beforeHooks = [(cb) -> cb(context, message)].concat(
             self.getBeforeHooks(type)
           )
 
-          self.waterfall beforeHooks, Meteor.bindEnvironment (context, message) ->
+          self._waterfallThrough beforeHooks, Meteor.bindEnvironment (context, message) ->
             try
               # Don't throw error right away, let developer have freedom
               # to log error or behave accordingly
@@ -109,11 +113,11 @@ class Space.messaging.Api extends Space.Object
             afterHooks = [(cb) -> cb(context, message, response)].concat(
               self.getAfterHooks(type)
             )
-            self.waterfall afterHooks, (context, message, response) ->
+            self._waterfallThrough afterHooks, (context, message, response) ->
               if response.error
-                callback(response.error, null)
+                asyncCallback(response.error, null)
               else
-                callback(null, result)
+                asyncCallback(null, result)
         # TODO: need clarification if Meteor.defer + context.unblock still work
         # as they should
         @constructor.method type, Meteor.wrapAsync(wrappedHandler)
