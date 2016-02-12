@@ -6,117 +6,98 @@ Space.Object.extend('Space.messaging.HookRegistry', {
 
   Constructor() {
     this._hooks = {};
-    this._globalHooks = {};
+    this._globalHooks = [];
   },
 
-  addMessageHook(messageType, hookType, callback) {
-    if (this._hooks[messageType] === undefined) {
-      this._hooks[messageType] = {};
-    }
-    if (this._hooks[messageType][hookType] === undefined) {
-      this._hooks[messageType][hookType] = [];
-    }
-    return callback(this._hooks[messageType][hookType]);
+  addMessageHook(messageType, callback) {
+    if (this._hooks[messageType] === undefined) this._hooks[messageType] = [];
+
+    return callback(this._hooks[messageType]);
   },
 
-  addBeforeHook(messageType, hookClass, hook, registeredViaClass,) {
-    var hookType = 'before';
-    var hookObj = this._createHookObject(
-      hookClass, hookType, hook, registeredViaClass
+  addBeforeHook(messageType, mwareInstance, hook, registeredVia) {
+    let hookObj = this._createHookObject(
+      mwareInstance, 'before', hook, registeredVia
     );
-    return this.addMessageHook(messageType, hookType, function(hooks) {
-      return hooks.push(hookObj);
+    return this.addMessageHook(messageType, function(hooks) {
+      hooks.push(hookObj);
     });
   },
 
-  addBeforeHookAsFirst(messageType, hookClass, hook, registeredViaClass,) {
-    var hookType = 'before';
-    var hookObj = this._createHookObject(
-      hookClass, hookType, hook, registeredViaClass
+  addBeforeHookAsFirst(messageType, mwareInstance, hook, registeredVia) {
+    let hookObj = this._createHookObject(
+      mwareInstance, 'before', hook, registeredVia
     );
-    return this.addMessageHook(messageType, hookType, function(hooks) {
-      return hooks.unshift(hookObj);
+    return this.addMessageHook(messageType, function(hooks) {
+      hooks.unshift(hookObj);
     });
   },
 
-  addAfterHook(messageType, hookClass, hook, registeredViaClass,) {
-    var hookType = 'after';
-    var hookObj = this._createHookObject(
-      hookClass, hookType, hook, registeredViaClass
+  addAfterHook(messageType, mwareInstance, hook, registeredVia) {
+    let hookObj = this._createHookObject(
+      mwareInstance, 'after', hook, registeredVia
     );
-    return this.addMessageHook(messageType, hookType, function(hooks) {
-      return hooks.push(hookObj);
+    return this.addMessageHook(messageType, function(hooks) {
+      hooks.push(hookObj);
     });
   },
 
-  addAfterHookAsFirst(messageType, hookClass, hook, registeredViaClass,) {
-    var hookType = 'after';
-    var hookObj = this._createHookObject(
-      hookClass, hookType, hook, registeredViaClass
+  addAfterHookAsFirst(messageType, mwareInstance, hook, registeredVia) {
+    let hookObj = this._createHookObject(
+      mwareInstance, 'after', hook, registeredVia
     );
-    return this.addMessageHook(messageType, hookType, function(hooks) {
-      return hooks.unshift(hookObj);
+    return this.addMessageHook(messageType, function(hooks) {
+      hooks.unshift(hookObj);
     });
   },
 
-  addRuleHook(messageType, hookClass, hook) {
-    var hookType = 'rule';
-    var hookObj = this._createHookObject(hookClass, hookType, hook);
+  addRuleHook(messageType, mwareInstance, hook) {
+    let hookObj = this._createHookObject(mwareInstance, 'rule', hook);
 
-    return this.addMessageHook(messageType, hookType, function(hooks) {
-      return hooks.push(hookObj);
+    return this.addMessageHook(messageType, function(hooks) {
+      hooks.push(hookObj);
     });
   },
 
-  addGlobalHook(hookType, callback) {
-    if (this._globalHooks[hookType] === undefined) {
-      this._globalHooks[hookType] = [];
-    }
-    return callback(this._globalHooks[hookType]);
+  addGlobalHook(callback) {
+    return callback(this._globalHooks);
   },
 
-  addGlobalBeforeHook(hookClass, hook) {
-    var hookType = 'before';
-    var hookObj = this._createHookObject(hookClass, hookType, hook);
-    return this.addGlobalHook(hookType, function(hooks) {
-      return hooks.push(hookObj);
+  addGlobalBeforeHook(mwareInstance, hook) {
+    let hookObj = this._createHookObject(mwareInstance, 'before', hook);
+    return this.addGlobalHook(function(hooks) {
+      hooks.push(hookObj);
     });
   },
 
-  addGlobalAfterHook(hookClass, hook) {
-    var hookType = 'after';
-    var hookObj = this._createHookObject(hookClass, hookType, hook);
-    return this.addGlobalHook(hookType, function(hooks) {
-      return hooks.push(hookObj);
+  addGlobalAfterHook(mwareInstance, hook) {
+    let hookObj = this._createHookObject(mwareInstance, 'after', hook);
+    return this.addGlobalHook(function(hooks) {
+      hooks.push(hookObj);
     });
   },
 
   getHooks(messageType, hookType) {
-    var registeredViaClass, hookMappings, hooks, messageMappings, ref;
-    hooks = {};
-    self = this;
+    if (this._hooks[messageType] === undefined) return [];
 
-    this.underscore.each(this._hooks, function(hookMappings, messageType){
-      self.underscore.each(hookMappings, function(hooksForType, hookType){
-        if (hooks[messageType] === undefined) {
-          hooks[messageType] = {};
-        }
-        if (hooks[messageType][hookType] === undefined) {
-          hooks[messageType][hookType] = [];
-        }
-        hooks[messageType][hookType] = hooks[messageType][hookType].concat(
-          hooksForType
-        )
-      })
+    let hooks = [];
+    this.underscore.each(this._hooks[messageType], function(hookObj){
+      if (hookObj.type === hookType) {
+        hooks.push(hookObj.hook.bind(hookObj.middlewareInstance))
+      }
     });
 
-    if (hooks[messageType] === undefined ||
-    hooks[messageType][hookType] === undefined) {
-      return [];
-    }
-    return this._applyGlobalHooksToHooksWithType(
-      hooks[messageType][hookType], hookType
-    );
+    let hooksWithGlobal = this._applyGlobalHooksToHooksByType(hooks, hookType);
+    return hooksWithGlobal;
+  },
+
+  _applyGlobalHooksToHooksByType(hooks, hookType) {
+    this.underscore.each(this._globalHooks, function(hookObj){
+      if (hookObj.type === hookType) {
+        hooks.unshift(hookObj.hook.bind(hookObj.middlewareInstance))
+      }
+    });
+    return hooks;
   },
 
   getBeforeHooks(messageType) {
@@ -131,22 +112,15 @@ Space.Object.extend('Space.messaging.HookRegistry', {
     return this.getHooks(messageType, 'rule');
   },
 
-  _applyGlobalHooksToHooksWithType(hooks, hookType) {
-    if (this._globalHooks[hookType] === undefined) {
-      this._globalHooks[hookType] = [];
-    }
-    return this._globalHooks[hookType].concat(hooks);
-  },
-
-  _createHookObject(hookClass, hookType, hook, registeredViaClass) {
+  _createHookObject(mwareInstance, hookType, hook, registeredVia) {
     obj = {
-      hookClass: hookClass,
+      middlewareInstance: mwareInstance,
       hook: hook,
-      hookType: hookType,
+      type: hookType,
     };
 
-    if (registeredViaClass !== undefined) {
-      obj.registeredVia = registeredViaClass;
+    if (registeredVia !== undefined) {
+      obj.registeredVia = registeredVia;
       obj.isGlobal = false;
     } else {
       obj.isGlobal = true;
