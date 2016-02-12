@@ -6,5 +6,10 @@ class Space.messaging extends Space.Module
   onInitialize: ->
     @injector.map('Space.messaging.EventBus').asSingleton()
     @injector.map('Space.messaging.CommandBus').asSingleton()
-    @injector.map('Space.messaging.HookRegistry').asSingleton()
+    @injector.map('Space.messaging.ApiHooks').asSingleton(
+      Space.messaging.HookRegistry
+    )
+    @injector.map('Space.messaging.CommandBusHooks').toSingleton(
+      Space.messaging.HookRegistry
+    )
     @injector.map('Space.messaging.Api').asStaticValue()
