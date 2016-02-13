@@ -42,7 +42,7 @@ class Space.messaging.Api extends Space.Object
     meteorCallCallback = (err, result) =>
       callback(err, result)
 
-      response = {error: err or undefined, result: result or undefined}
+      response = {error: err, result: result}
       @_waterfall(
         @_getAfterHooks(context, message, response),
         bindEnv (context, message, response) =>
@@ -103,7 +103,7 @@ class Space.messaging.Api extends Space.Object
 
           try
             result = handler.apply(@, [context, message])
-            response = {error: undefined, result: result or undefined}
+            response = {error: undefined, result: result}
           catch e
             response = {error: e, result: undefined}
 

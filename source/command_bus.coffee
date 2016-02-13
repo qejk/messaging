@@ -36,7 +36,7 @@ class Space.messaging.CommandBus extends Space.Object
 
     try
       result = handler(command)
-      response = {error: undefined, result: result or undefined}
+      response = {error: undefined, result: result}
     catch e
       response = {error: e, result: undefined}
 
