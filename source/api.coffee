@@ -3,8 +3,8 @@
 class Space.messaging.Api extends Space.Object
 
   dependencies: {
-    injector: 'Injector',
     meteor: 'Meteor'
+    injector: 'Injector',
     underscore: 'underscore'
   }
 
@@ -38,9 +38,10 @@ class Space.messaging.Api extends Space.Object
     # Only when accounts package is present on application
     context.userId = Meteor.userId if Meteor.userId?
 
+    bindEnv = Meteor.bindEnvironment
+
     meteorCallCallback = (err, result) =>
-      response = {error: undefined, result: result or undefined}
-      response.error = err if err?
+      response = {error: err or undefined, result: result or undefined}
 
       # TODO: would be nice to use here easier way to validate origination of
       # this.send() method invocation, however was having issues with stack
@@ -52,12 +53,12 @@ class Space.messaging.Api extends Space.Object
       if isCalledFromCmdBus
         callback(err, result, afterHooks)
       else
-        @_waterfallThrough(afterHooks, (context, message, response) =>
+        @_waterfallThrough(afterHooks, bindEnv (context, message, response) =>
           callback(err, result) if callback
         )
 
-    @_waterfallThrough @_getBeforeHooks(context, message), (context, message) =>
-      Meteor.call(message.typeName(), message, meteorCallCallback)
+    @_waterfallThrough @_getBeforeHooks(context, message), bindEnv (context, message) =>
+      Meteor.call(message.typeName(), message, bindEnv(meteorCallCallback))
 
   @_getBeforeHooks: (context, message) ->
     # First callback is passing appropriate arguments to rest of hooks
