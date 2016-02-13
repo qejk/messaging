@@ -34,14 +34,14 @@ class Space.messaging.CommandBus extends Space.Object
     wrappedHandler = (command, asyncCallback) =>
       bindEnv = Meteor.bindEnvironment
 
-      @_waterfallThrough @_getBeforeHooks(command), bindEnv (command) =>
+      @_waterfall @_getBeforeHooks(command), bindEnv (command) =>
         try
           result = handler(command)
           response = {error: undefined, result: result or undefined}
         catch e
           response = {error: e, result: undefined}
 
-        @_waterfallThrough(
+        @_waterfall(
           @_getAfterHooks(command, response), bindEnv (command, response) ->
             if response.error
               asyncCallback(response.error, undefined)
@@ -58,12 +58,12 @@ class Space.messaging.CommandBus extends Space.Object
       callback(err, result) if callback?
 
       # Fire Api after hooks in order
-      @_waterfallThrough apiAfterHooks, () =>
+      @_waterfall apiAfterHooks, () =>
         # CommandBus after hooks
         afterHooks = @_getAfterHooks(command, response)
-        @_waterfallThrough(afterHooks, (command, response) =>)
+        @_waterfall(afterHooks, (command, response) =>)
 
-    @_waterfallThrough @_getBeforeHooks(command), (command) =>
+    @_waterfall @_getBeforeHooks(command), (command) =>
       @api.send(command, apiCallback, true)
 
   _getBeforeHooks: (command) ->

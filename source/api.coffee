@@ -53,11 +53,11 @@ class Space.messaging.Api extends Space.Object
       if isCalledFromCmdBus
         callback(err, result, afterHooks)
       else
-        @_waterfallThrough(afterHooks, bindEnv (context, message, response) =>
+        @_waterfall(afterHooks, bindEnv (context, message, response) =>
           callback(err, result) if callback
         )
 
-    @_waterfallThrough @_getBeforeHooks(context, message), bindEnv (context, message) =>
+    @_waterfall @_getBeforeHooks(context, message), bindEnv (context, message) =>
       Meteor.call(message.typeName(), message, bindEnv(meteorCallCallback))
 
   @_getBeforeHooks: (context, message) ->
@@ -109,7 +109,7 @@ class Space.messaging.Api extends Space.Object
           bindEnv = Meteor.bindEnvironment
 
           beforeHooks = @_getBeforeHooks(context, message)
-          @_waterfallThrough beforeHooks, bindEnv (context, message) =>
+          @_waterfall beforeHooks, bindEnv (context, message) =>
             try
               # Don't throw error right away, let developer have freedom
               # to log error or behave accordingly
@@ -119,7 +119,7 @@ class Space.messaging.Api extends Space.Object
               response = {error: e, result: undefined}
 
             afterHooks = @_getAfterHooks(context, message, response)
-            @_waterfallThrough afterHooks, bindEnv (context, message, response) ->
+            @_waterfall afterHooks, bindEnv (context, message, response) ->
               if response.error
                 asyncCallback(response.error, undefined)
               else

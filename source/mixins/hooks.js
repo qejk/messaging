@@ -5,14 +5,14 @@ Space.messaging.Hooks = function(registryMapping) {
       underscore: 'underscore'
     },
 
-    _waterfallThrough(hooks, callback) {
+    _waterfall(tasks, callback) {
       self = this;
       callback = _once(callback || noop);
 
-      if (!this.underscore.isArray(hooks)) {
+      if (!this.underscore.isArray(tasks)) {
         throw new Error('First argument must be an array of functions');
       }
-      if (!hooks.length) return callback();
+      if (!tasks.length) return callback();
 
       function wrapIterator(iterator) {
         return _restParam(function (args) {
@@ -26,7 +26,7 @@ Space.messaging.Hooks = function(registryMapping) {
           ensureAsync(iterator).apply(null, args);
         });
       }
-      wrapIterator(iterator(hooks))();
+      wrapIterator(iterator(tasks))();
     },
 
     addBeforeHook(messageType, hookClass, hook) {
