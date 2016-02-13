@@ -83,7 +83,26 @@ Space.Object.extend('Space.messaging.HookRegistry', {
     let hooks = [];
     this.underscore.each(this._hooks[messageType], function(hookObj){
       if (hookObj.type === hookType) {
-        hooks.push(hookObj.hook.bind(hookObj.middlewareInstance))
+        if (hookObj.type === 'rule') {
+          hooks.push(function() {
+            try {
+              return hookObj.hook.apply(hookObj.middlewareInstance, arguments);
+            } catch (error) {
+              if (error instanceof Space.Error) {
+                return hookObj.middlewareInstance.publish(
+                  new Space.domain.Exception({
+                    thrower: hookObj.middlewareInstance.toString(),
+                    error: error
+                  })
+                );
+              } else {
+                throw error;
+              }
+            }
+          });
+        } else {
+          hooks.push(hookObj.hook.bind(hookObj.middlewareInstance))
+        }
       }
     });
 
