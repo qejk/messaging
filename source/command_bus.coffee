@@ -31,25 +31,19 @@ class Space.messaging.CommandBus extends Space.Object
       message = "Missing command handler for <#{command.typeName()}>."
       throw new Error message
 
-    wrappedHandler = (command, asyncCallback) =>
-      bindEnv = Meteor.bindEnvironment
+    for beforeHook in @_getBeforeHooks(command)
+      beforeHook(command, () -> )
 
-      @_waterfall @_getBeforeHooks(command), bindEnv (command) =>
-        try
-          result = handler(command)
-          response = {error: undefined, result: result or undefined}
-        catch e
-          response = {error: e, result: undefined}
+    try
+      result = handler(command)
+      response = {error: undefined, result: result or undefined}
+    catch e
+      response = {error: e, result: undefined}
 
-        @_waterfall(
-          @_getAfterHooks(command, response), bindEnv (command, response) ->
-            if response.error
-              asyncCallback(response.error, undefined)
-            else
-              asyncCallback(undefined, result)
-        )
+    for afterHook in @_getAfterHooks(command, response)
+      afterHook(command, response, () -> )
 
-    return Meteor.wrapAsync(wrappedHandler)(command)
+    return result
 
   _sendToClient: (command, callback) ->
     apiCallback = (err, result) =>
@@ -69,17 +63,24 @@ class Space.messaging.CommandBus extends Space.Object
     - and in same time it require to run whole app validation before business
       logic
     ###
-
-    # First callback is passing appropriate arguments to rest of hooks
-    return [(cb) -> cb(command)].concat(
+    beforeHooks = [].concat(
       @getBeforeHooks(command.typeName()), @getRuleHooks(command.typeName())
     )
 
+    if @meteor.isServer
+      return beforeHooks
+    else
+      # First callback is passing appropriate arguments to rest of hooks
+      return [(cb) -> cb(command)].concat(beforeHooks)
+
   _getAfterHooks: (command, response) ->
-    # First callback is passing appropriate arguments to rest of hooks
-    return [(cb) -> cb(command, response)].concat(
-      @getAfterHooks(command.typeName())
-    )
+    afterHooks = @getAfterHooks(command.typeName())
+
+    if @meteor.isServer
+      return afterHooks
+    else
+      # First callback is passing appropriate arguments to rest of hooks
+      return [(cb) -> cb(command, response)].concat(afterHooks)
 
   registerHandler: (typeName, handler, overrideExisting) ->
     if @_handlers[typeName]? and !overrideExisting

@@ -97,41 +97,29 @@ class Space.messaging.Api extends Space.Object
       if @meteor.isClient
         @constructor.method type, handler
       else
-        wrappedHandler = (context, message, asyncCallback) =>
-          bindEnv = Meteor.bindEnvironment
+        wrappedHandler = (context, message) =>
+          for beforeHook in @_getBeforeHooks(context, message)
+            beforeHook(context, message, () ->)
 
-          beforeHooks = @_getBeforeHooks(context, message)
-          @_waterfall beforeHooks, bindEnv (context, message) =>
-            try
-              # Don't throw error right away, let developer have freedom
-              # to log error or behave accordingly
-              result = handler.apply(@, [context, message])
-              response = {error: undefined, result: result or undefined}
-            catch e
-              response = {error: e, result: undefined}
+          try
+            result = handler.apply(@, [context, message])
+            response = {error: undefined, result: result or undefined}
+          catch e
+            response = {error: e, result: undefined}
 
-            afterHooks = @_getAfterHooks(context, message, response)
-            @_waterfall afterHooks, bindEnv (context, message, response) ->
-              if response.error
-                asyncCallback(response.error, undefined)
-              else
-                asyncCallback(undefined, result)
-        # TODO: need clarification if Meteor.defer + context.unblock still work
-        # as they should
-        @constructor.method type, Meteor.wrapAsync(wrappedHandler)
+          for afterHook in @_getAfterHooks(context, message, response)
+            afterHook(context, message, response, () -> )
+
+          return result
+
+        @constructor.method type, wrappedHandler
 
 
   _getBeforeHooks: (context, message) ->
-    # First callback is passing appropriate arguments to rest of hooks
-    return [(cb) -> cb(context, message)].concat(
-      @getBeforeHooks(message.typeName())
-    )
+    return @getBeforeHooks(message.typeName())
 
   _getAfterHooks: (context, message, response) ->
-    # First callback is passing appropriate arguments to rest of hooks
-    return [(cb) -> cb(context, message, response)].concat(
-      @getAfterHooks(message.typeName())
-    )
+    return @getAfterHooks(message.typeName())
 
   _setupBeforeHooks: ->
     @_setupDeclarativeMappings('beforeMap', (hook, methodName) =>
