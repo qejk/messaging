@@ -52,19 +52,14 @@ class Space.messaging.CommandBus extends Space.Object
     return Meteor.wrapAsync(wrappedHandler)(command)
 
   _sendToClient: (command, callback) ->
-    apiCallback = (err, result, apiAfterHooks) =>
+    apiCallback = (err, result) =>
+      callback(err, result) if callback?
       response = {error: err, result: result}
 
-      callback(err, result) if callback?
-
-      # Fire Api after hooks in order
-      @_waterfall apiAfterHooks, () =>
-        # CommandBus after hooks
-        afterHooks = @_getAfterHooks(command, response)
-        @_waterfall(afterHooks, (command, response) =>)
+      @_waterfall @_getAfterHooks(command, response), (command, response) =>
 
     @_waterfall @_getBeforeHooks(command), (command) =>
-      @api.send(command, apiCallback, true)
+      @api.send(command, apiCallback)
 
   _getBeforeHooks: (command) ->
     ###

@@ -27,7 +27,7 @@ class Space.messaging.Api extends Space.Object
 
 
   # Sugar for sending messages to the server
-  @send: (message, callback, isCalledFromCmdBus) ->
+  @send: (message, callback) ->
     # TODO: We could fake DDPCommon.MethodInvocation here so the context is
     # like Meteor's one (like what is happening in package 'ddp-client' on
     # 'livedata_connection.js' - Meteor.call()) however this can cause
@@ -39,23 +39,15 @@ class Space.messaging.Api extends Space.Object
     context.userId = Meteor.userId if Meteor.userId?
 
     bindEnv = Meteor.bindEnvironment
-
     meteorCallCallback = (err, result) =>
+      callback(err, result)
+
       response = {error: err or undefined, result: result or undefined}
-
-      # TODO: would be nice to use here easier way to validate origination of
-      # this.send() method invocation, however was having issues with stack
-      # trace ((new Error).stack) - do to minifying
-
-      afterHooks = @_getAfterHooks(context, message, response)
-      # Pass Api hooks here down back to CommandBus if this.send()
-      # invocation originates from CommandBus in first place order sake
-      if isCalledFromCmdBus
-        callback(err, result, afterHooks)
-      else
-        @_waterfall(afterHooks, bindEnv (context, message, response) =>
+      @_waterfall(
+        @_getAfterHooks(context, message, response),
+        bindEnv (context, message, response) =>
           callback(err, result) if callback
-        )
+      )
 
     @_waterfall @_getBeforeHooks(context, message), bindEnv (context, message) =>
       Meteor.call(message.typeName(), message, bindEnv(meteorCallCallback))
